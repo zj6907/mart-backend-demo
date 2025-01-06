@@ -34,3 +34,6 @@ build/
 
 ### SSH ###
 .ssh/
+
+README.sql
+README.txt
