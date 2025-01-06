@@ -1,20 +1,31 @@
 package com.ecommerce.demo.service;
 
 import com.ecommerce.demo.dto.ResponseDto;
-import com.ecommerce.demo.dto.user.SigninRespDto;
-import com.ecommerce.demo.dto.user.SignupDto;
+import com.ecommerce.demo.dto.user.*;
 import com.ecommerce.demo.exceptions.AuthTokenException;
 import com.ecommerce.demo.exceptions.CustomException;
-import com.ecommerce.demo.model.Authtoken;
-import com.ecommerce.demo.model.User;
+import com.ecommerce.demo.model.Role;
+import com.ecommerce.demo.model.UserEntity;
 import com.ecommerce.demo.repository.AuthtokenRepo;
+import com.ecommerce.demo.repository.RoleRepo;
 import com.ecommerce.demo.repository.UserRepo;
-import jakarta.xml.bind.DatatypeConverter;
+import com.ecommerce.demo.security.JwtProvider;
+import com.ecommerce.demo.security.SecurityConstants;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 
 @Service
 public class UserService {
@@ -23,65 +34,91 @@ public class UserService {
     UserRepo repo;
     @Autowired
     AuthtokenRepo authTokenRepo;
+    @Autowired
+    PasswordEncoder passwordEncoder;
+    @Autowired
+    private RoleRepo roleRepo;
+    @Autowired
+    AuthenticationManager authenticationManager;
+    @Autowired
+    JwtProvider jwtProvider;
 
+
+    @Transactional
     public ResponseDto signup(SignupDto dto) {
         // check if user exist
         boolean exists = repo.existsByEmail(dto.getEmail());
         if (exists) throw new CustomException("User already exists!");
-
         // hash the password
-        String encrypted = dto.getPassword();
-        try {
-            encrypted = hashPassword(encrypted);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-
+        String encoded = encode(dto.getPassword());
+        UserEntity user = new UserEntity(dto.getFirstName(), dto.getLastName(), dto.getEmail(), encoded);
+        // default role
+        Role role = roleRepo.findByName("USER").get();
+        user.setRoles(Collections.singletonList(role));
         // save the user
-        User u = new User(dto.getFirstName(), dto.getLastName(), dto.getEmail(), encrypted);
-        repo.save(u);
-
-        // create and save the token
-        Authtoken token = new Authtoken(u);
-        authTokenRepo.save(token);
-
-        return new ResponseDto("success", "Signup successful, user created!");
+        repo.save(user);
+        return new ResponseDto("success", "Signup successful, user created! Please Login!");
     }
 
-
-    private String hashPassword(String pwd) throws NoSuchAlgorithmException {
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        md.update(pwd.getBytes());
-        byte[] bytes = md.digest();
-        return DatatypeConverter.printHexBinary(bytes).toUpperCase();
-    }
-
-
-    public SigninRespDto signin(User u) {
-        // check if user exists
-        User repoUser = repo.findByEmail(u.getEmail());
-        if (repoUser == null){
-            throw new AuthTokenException("User doesn't exist");
-        }
-
-        // compare the password
-        String encrypted = u.getPassword();
-        try {
-            encrypted = hashPassword(encrypted);
+    private String encode(String pwd) {
+        return passwordEncoder.encode(pwd);
+        /*try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(pwd.getBytes());
+            byte[] bytes = md.digest();
+            return DatatypeConverter.printHexBinary(bytes).toUpperCase();
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
-        }
-        if (!encrypted.equals(repoUser.getPassword())) {
-            throw new AuthTokenException("Password incorrect!");
-        }
+        }*/
+    }
 
-        // retrieve the token
-        Authtoken authToken = authTokenRepo.findByUser(repoUser);
-        if (authToken == null){
-            throw new CustomException("Token doesn't exist for user " + u.getFirstName());
-        }
 
-        // response with the token
-        return new SigninRespDto("Sign in successful!", authToken.getToken());
+    public LoginRespDto login(LoginDto dto) {
+        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(dto.getEmail(), dto.getPassword()));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String message = "Sign in successful!";
+        Collection<? extends GrantedAuthority> roles = authentication.getAuthorities();
+        return new LoginRespDto(message, roles, jwtProvider.generateAccessJwt(authentication), jwtProvider.generateRefreshJwt(authentication));
+    }
+
+    public UserEntity findByEmail(String email) {
+        UserEntity byEmail = repo.findByEmail(email);
+        if (byEmail == null) throw new CustomException("User not found!");
+        return byEmail;
+    }
+
+    public RefreshRespDto refresh(String refreshTk) {
+        if (refreshTk == null || refreshTk.isEmpty()) throw new CustomException("Refresh Token cann't be empty");
+        Claims claims = null;
+        try {
+            claims = jwtProvider.getPayloadFromJwt(refreshTk);
+        } catch (Exception e) {
+            if (e instanceof ExpiredJwtException)
+                throw new AuthTokenException("Refresh Token Expired!", "REFRESH_EXPIRED");
+        }
+        String subject = jwtProvider.getSubjectFromPayload(claims);
+        Collection<? extends GrantedAuthority> authorities = jwtProvider.getAuthoritiesFromPayload(claims);
+        String accessJwt = jwtProvider.generateAccessJwt(subject, authorities);
+        // If refresh token has less than half of its lifespan, generate it.
+        String refreshJwt = null;
+        long expirationTime = claims.getExpiration().getTime();
+        long currentTime = new Date().getTime();
+        if (currentTime > expirationTime - SecurityConstants.REFRESH_LIFESPAN_IN_MS / 2) {
+            refreshJwt = jwtProvider.generateRefreshJwt(subject, authorities);
+        }
+        String message = "Refres Token Successful!";
+        return new RefreshRespDto(message, authorities, accessJwt, refreshJwt);
+    }
+
+    public RolesRespDto parse(String accessToken) {
+        Claims claims = null;
+        try {
+            claims = jwtProvider.getPayloadFromJwt(accessToken);
+        } catch (Exception e) {
+            if (e instanceof ExpiredJwtException)
+                throw new AuthTokenException("Access Token Expired!", "ACCESS_EXPIRED");
+            throw e;
+        }
+        return new RolesRespDto("Token parse successful", jwtProvider.getAuthoritiesFromPayload(claims));
     }
 }

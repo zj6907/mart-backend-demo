@@ -20,14 +20,14 @@ public class Authtoken {
     @Column(name = "created_date")
     private @NotNull Date createdDate;
 
-    @OneToOne(targetEntity = User.class, fetch = FetchType.EAGER)
+    @OneToOne(targetEntity = UserEntity.class, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private UserEntity user;
 
     public Authtoken() {
     }
 
-    public Authtoken(User u) {
+    public Authtoken(UserEntity u) {
         this.user = u;
         this.token = UUID.randomUUID().toString();
         this.createdDate = new Date();

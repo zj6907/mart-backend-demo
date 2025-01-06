@@ -12,7 +12,7 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private @Id Integer id;
     private @NotNull String name;
-    private @NotNull Float price;
+    private @NotNull Double price;
     private @NotNull String description;
     @Column(name = "image_url")
     private @NotNull String imageUrl;

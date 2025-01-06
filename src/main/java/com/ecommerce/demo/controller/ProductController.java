@@ -2,33 +2,50 @@ package com.ecommerce.demo.controller;
 
 import com.ecommerce.demo.common.APIResponse;
 import com.ecommerce.demo.dto.ProductDto;
-import com.ecommerce.demo.model.Category;
-import com.ecommerce.demo.service.CategoryService;
 import com.ecommerce.demo.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/product")
 public class ProductController {
     @Autowired
     ProductService service;
-    @Autowired
-    CategoryService categoryService;
 
+    @PreAuthorize("hasAuthority('ADMIN')")
     @PostMapping("/add")
     public ResponseEntity<APIResponse> add(@RequestBody ProductDto dto) {
-        Optional<Category> c = categoryService.findById(dto.getCategoryId());
-        if (c.isEmpty()) {
-            return new ResponseEntity<>(new APIResponse(false, "category not exist!"), HttpStatus.BAD_REQUEST);
+        if (dto.getCategoryId() == null) {
+            return new ResponseEntity<>(new APIResponse(false, "Category must not be empty!"), HttpStatus.BAD_REQUEST);
         }
-        service.add(dto, c.get());
+
+        service.add(dto);
         return new ResponseEntity<>(new APIResponse(true, "Product successfully added!"), HttpStatus.CREATED);
+    }
+
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PostMapping("/addAll")
+    public ResponseEntity<APIResponse> addAll(@RequestBody List<ProductDto> dtos) {
+        if (dtos.isEmpty()) {
+            return new ResponseEntity<>(new APIResponse(false, "Product must not be empty!"), HttpStatus.BAD_REQUEST);
+        }
+
+        service.addAll(dtos);
+        return new ResponseEntity<>(new APIResponse(true, dtos.size() + " products added successfully!"), HttpStatus.CREATED);
+    }
+
+
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PutMapping("/update/{id}")
+    public ResponseEntity<APIResponse> update(@RequestBody ProductDto dto) {
+        service.update(dto);
+        return new ResponseEntity<>(new APIResponse(true, "Product successfully updated!"), HttpStatus.OK);
     }
 
     @GetMapping("/findAll")
@@ -37,17 +54,20 @@ public class ProductController {
         return new ResponseEntity<>(dtos, HttpStatus.OK);
     }
 
-    @PostMapping("/update")
-    public ResponseEntity<APIResponse> update(@RequestBody ProductDto dto) {
-        Optional<Category> c = categoryService.findById(dto.getCategoryId());
-        if (c.isEmpty()) {
-            return new ResponseEntity<>(new APIResponse(false, "Category not exist!"), HttpStatus.BAD_REQUEST);
-        }
-        if (!service.exist(dto.getId())) {
-            return new ResponseEntity<>(new APIResponse(false, "Product not exist!"), HttpStatus.BAD_REQUEST);
-        }
-        service.update(dto, c.get());
-        return new ResponseEntity<>(new APIResponse(true, "Product successfully added!"), HttpStatus.OK);
+    @GetMapping("/paginate")
+    public ResponseEntity<Page<ProductDto>> getPaginatedProductDtos(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<ProductDto> dtoPage = service.getPaginatedProductDtos(page, size);
+        return new ResponseEntity<>(dtoPage, HttpStatus.OK);
+    }
+
+    // Optional: With sorting
+    @GetMapping("/paginate/sorted")
+    public ResponseEntity<Page<ProductDto>> getSortedPaginatedProductDtos(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "name") String sortBy) {
+        Page<ProductDto> dtoPage = service.getSortedPaginatedProductDtos(page, size, sortBy);
+        return new ResponseEntity<>(dtoPage, HttpStatus.OK);
     }
 
 }

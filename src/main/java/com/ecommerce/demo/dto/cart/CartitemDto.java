@@ -8,4 +8,5 @@ public class CartitemDto {
     private Integer id;
     private Product product;
     private Integer quantity;
+    private Double totalPrice;
 }

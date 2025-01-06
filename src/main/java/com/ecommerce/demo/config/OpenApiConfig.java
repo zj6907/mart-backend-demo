@@ -2,6 +2,8 @@ package com.ecommerce.demo.config;
 
 import java.util.List;
 
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +20,7 @@ public class OpenApiConfig {
 
     @Value("${edemo.openapi.dev-url}")
     private String devUrl;
+
 
     @Value("${edemo.openapi.prod-url}")
     private String prodUrl;
@@ -46,6 +49,19 @@ public class OpenApiConfig {
                 .description("This API exposes endpoints to manage tutorials.").termsOfService("https://www.bezkoder.com/terms")
                 .license(mitLicense);
 
-        return new OpenAPI().info(info).servers(List.of(devServer, prodServer));
+        return new OpenAPI()
+                .info(info)
+                .servers(List.of(devServer, prodServer))
+                // enable HTTP Security Scheme
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
+                .components(new io.swagger.v3.oas.models.Components()
+                        .addSecuritySchemes("bearerAuth",
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")
+                        )
+                )
+                ;
     }
 }

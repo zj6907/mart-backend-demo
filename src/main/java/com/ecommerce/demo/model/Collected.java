@@ -9,14 +9,14 @@ import java.util.Date;
 @Entity
 @Table(name = "wishlist")
 @Data
-public class Wishlist {
+public class Collected {
 
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private @Id Integer id;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
-    private User user;
+    private UserEntity user;
 
     @ManyToOne
     @JoinColumn(name = "product_id")
@@ -24,10 +24,10 @@ public class Wishlist {
 
     private @NotNull Date createdDate;
 
-    public Wishlist() {
+    public Collected() {
     }
 
-    public Wishlist(User user, Product product) {
+    public Collected(UserEntity user, Product product) {
         this.user = user;
         this.product = product;
         this.createdDate = new Date();

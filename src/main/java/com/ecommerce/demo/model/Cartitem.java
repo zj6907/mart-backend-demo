@@ -7,6 +7,7 @@ import lombok.Data;
 import java.util.Date;
 
 @Entity
+@Table(name = "cartitems")
 @Data
 public class Cartitem {
 
@@ -15,7 +16,7 @@ public class Cartitem {
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    private @NotNull User user;
+    private @NotNull UserEntity user;
 
     @ManyToOne
     @JoinColumn(name = "product_id")
@@ -28,7 +29,7 @@ public class Cartitem {
     public Cartitem() {
     }
 
-    public Cartitem(User user, Product product, Integer quantity) {
+    public Cartitem(UserEntity user, Product product, Integer quantity) {
         this.user = user;
         this.product = product;
         this.quantity = quantity;
