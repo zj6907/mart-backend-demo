@@ -40,9 +40,8 @@ public class ProductController {
         return new ResponseEntity<>(new APIResponse(true, dtos.size() + " products added successfully!"), HttpStatus.CREATED);
     }
 
-
     @PreAuthorize("hasAuthority('ADMIN')")
-    @PutMapping("/update/{id}")
+    @PutMapping("/update")
     public ResponseEntity<APIResponse> update(@RequestBody ProductDto dto) {
         service.update(dto);
         return new ResponseEntity<>(new APIResponse(true, "Product successfully updated!"), HttpStatus.OK);

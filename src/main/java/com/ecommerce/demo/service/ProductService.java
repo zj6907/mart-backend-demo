@@ -103,7 +103,6 @@ public class ProductService {
         }};
     }
 
-
     public Product checkProduct(Integer productId) {
         if (productId == null) throw new CustomException("Product id cannot be empty!");
         Product p = repo.findById(productId).orElse(null);
